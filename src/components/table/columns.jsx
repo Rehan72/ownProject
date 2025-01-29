@@ -1,8 +1,8 @@
-"use client";
+"use client"
 
-import { ArrowUpDown, MoreHorizontal, ChevronRight, ChevronDown } from "lucide-react";
-import { Button } from "../../components/ui/button";
-import { Checkbox } from "../../components/ui/checkbox";
+import { ArrowUpDown, MoreHorizontal, ChevronRight, ChevronDown } from "lucide-react"
+import { Button } from "../../components/ui/button"
+import { Checkbox } from "../../components/ui/checkbox"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,10 +10,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "../../components/ui/dropdown-menu";
-import { User, ChildUser, Project } from "../../lib/data";
+} from "../../components/ui/dropdown-menu"
 
-const baseColumns = [
+export const columns = [
   {
     id: "select",
     header: ({ table }) => (
@@ -23,24 +22,40 @@ const baseColumns = [
         aria-label="Select all"
       />
     ),
-    cell: ({ row, table }) => {
-      return (
+    cell: ({ row, updateChildrenSelection, updateParentSelection }) => (
         <Checkbox
           checked={row.getIsSelected()}
           onCheckedChange={(value) => {
-            row.toggleSelected(!!value);
-            if (row.original.teams || row.original.projects) {
-              row.getLeafRows().forEach((leafRow) => {
-                leafRow.toggleSelected(!!value);
-              });
-            }
+            row.toggleSelected(!!value); // Toggle the selected state of the child row
+      
+            // Update children selection (this handles checking/unchecking based on parent-child hierarchy)
+            updateChildrenSelection(row, !!value);
+      
+            // After the child is toggled, immediately check if the parent needs to be updated
+            updateParentSelection(row);
           }}
           aria-label="Select row"
+          ref={(checkbox) => {
+            // Set the indeterminate state for the parent checkbox
+            if (checkbox) {
+              checkbox.indeterminate = row.getIsSomeSelected() && !row.getIsSelected();
+            }
+          }}
         />
-      );
-    },
+      ),
     enableSorting: false,
     enableHiding: false,
+  },
+  {
+    id: "expander",
+    header: () => null,
+    cell: ({ row }) => {
+      return row.getCanExpand() ? (
+        <Button variant="ghost" onClick={row.getToggleExpandedHandler()} className="p-0 w-6 h-6">
+          {row.getIsExpanded() ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </Button>
+      ) : null
+    },
   },
   {
     accessorKey: "name",
@@ -67,21 +82,6 @@ const baseColumns = [
     header: "Status",
     cell: ({ row }) => <div>{row.getValue("status")}</div>,
   },
-];
-
-export const userColumns = [
-  {
-    id: "expander",
-    header: () => null,
-    cell: ({ row }) => {
-      return row.getCanExpand() ? (
-        <Button variant="ghost" onClick={row.getToggleExpandedHandler()} className="p-0 w-6 h-6">
-          {row.getIsExpanded() ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        </Button>
-      ) : null;
-    },
-  },
-  ...baseColumns,
   {
     accessorKey: "lastLogin",
     header: ({ column }) => (
@@ -95,7 +95,7 @@ export const userColumns = [
   {
     id: "actions",
     cell: ({ row }) => {
-      const user = row.original;
+      const user = row.original
 
       return (
         <DropdownMenu>
@@ -109,37 +109,57 @@ export const userColumns = [
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
             <DropdownMenuItem onClick={() => navigator.clipboard.writeText(user.id)}>Copy user ID</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>{"View user details"}</DropdownMenuItem>
-            <DropdownMenuItem>{"View user's teams"}</DropdownMenuItem>
-            <DropdownMenuItem>{"View user's projects"}</DropdownMenuItem>
+            <DropdownMenuItem>View user details</DropdownMenuItem>
+            <DropdownMenuItem>View user's members</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      );
+      )
     },
   },
-];
+]
 
-export const teamColumns = [
-  ...baseColumns,
+export const childColumns = [
   {
-    id: "memberCount",
-    header: "Member Count",
-    cell: ({ row }) => <div>{row.original.members.length}</div>,
+    id: "select",
+    header: ({ table }) => (
+      <Checkbox
+        checked={table.getIsAllPageRowsSelected()}
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Select all"
+      />
+    ),
+    cell: ({ row, updateChildrenSelection, updateParentSelection }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => {
+          row.toggleSelected(!!value)
+          updateChildrenSelection(row, !!value) // Update children when the checkbox is clicked
+          updateParentSelection(row) // Update parent when the checkbox is clicked
+        }}
+        aria-label="Select row"
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
   },
-];
-
-export const projectColumns = [
-  ...baseColumns,
+  {
+    accessorKey: "name",
+    header: "Name",
+    cell: ({ row }) => <div>{row.getValue("name")}</div>,
+  },
+  {
+    accessorKey: "email",
+    header: "Email",
+    cell: ({ row }) => <div>{row.getValue("email")}</div>,
+  },
+  {
+    accessorKey: "role",
+    header: "Role",
+    cell: ({ row }) => <div>{row.getValue("role")}</div>,
+  },
   {
     accessorKey: "status",
     header: "Status",
     cell: ({ row }) => <div>{row.getValue("status")}</div>,
   },
-  {
-    id: "memberCount",
-    header: "Member Count",
-    cell: ({ row }) => <div>{row.original.members.length}</div>,
-  },
-];
-
-export const childUserColumns = baseColumns;
+]

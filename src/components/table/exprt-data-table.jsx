@@ -1,30 +1,72 @@
-"use client";
-
-import * as React from "react";
-import {
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from "@tanstack/react-table";
-
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
-import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
-import { userColumns, teamColumns, projectColumns } from "./columns";
+import React, { useState } from "react"
+import { useReactTable, flexRender, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel } from "@tanstack/react-table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table"
+import { Button } from "../../components/ui/button"
+import { Input } from "../../components/ui/input"
+import { columns as defaultColumns } from "./columns"
 
 export function DataTable({ data }) {
-  const [sorting, setSorting] = React.useState([]);
-  const [columnFilters, setColumnFilters] = React.useState([]);
-  const [columnVisibility, setColumnVisibility] = React.useState({});
-  const [rowSelection, setRowSelection] = React.useState({});
-  const [expanded, setExpanded] = React.useState({});
+  const [sorting, setSorting] = useState([])
+  const [columnFilters, setColumnFilters] = useState([])
+  const [columnVisibility, setColumnVisibility] = useState({})
+  const [rowSelection, setRowSelection] = useState({})
+  const [expanded, setExpanded] = useState({})
+
+  // Define the functions before passing to columns
+  const updateChildrenSelection = (row, isSelected) => {
+    row.subRows?.forEach((subRow) => {
+      subRow.toggleSelected(isSelected)
+      if (subRow.getCanExpand()) {
+        updateChildrenSelection(subRow, isSelected)
+      }
+    })
+  }
+
+  const updateParentSelection = (row) => {
+    // If the row has a parent (i.e., it's a child row), update the parent checkbox
+    const parentRow = row.getParentRow();
+  
+    if (parentRow) {
+      // Check if all sub-rows are selected
+      const allChildrenSelected = parentRow.subRows.every(subRow => subRow.getIsSelected());
+      const someChildrenSelected = parentRow.subRows.some(subRow => subRow.getIsSelected());
+  
+      if (allChildrenSelected) {
+        // All child rows are selected, so mark the parent as checked
+        parentRow.toggleSelected(true);
+      } else if (!someChildrenSelected) {
+        // No child rows are selected, so mark the parent as unchecked
+        parentRow.toggleSelected(false);
+      } else {
+        // Some child rows are selected, so mark the parent as indeterminate
+        parentRow.toggleSelected(true);
+      }
+  
+      // Recursively update the parent
+      updateParentSelection(parentRow);
+    }
+  };
+
+  // Modify columns to include updateChildrenSelection and updateParentSelection
+  const columns = defaultColumns.map((column) => {
+    if (column.cell) {
+      return {
+        ...column,
+        cell: ({ row }) => {
+          return column.cell({
+            row,
+            updateChildrenSelection,
+            updateParentSelection,
+          })
+        },
+      }
+    }
+    return column
+  })
 
   const table = useReactTable({
     data,
-    columns: userColumns,
+    columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
@@ -34,13 +76,7 @@ export function DataTable({ data }) {
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
     onExpandedChange: setExpanded,
-    getSubRows: (row) => {
-      const subRows = [];
-      if (row.teams) subRows.push(...row.teams.map((team) => ({ ...team, type: "team", parentId: row.id })));
-      if (row.projects)
-        subRows.push(...row.projects.map((project) => ({ ...project, type: "project", parentId: row.id })));
-      return subRows;
-    },
+    getSubRows: (row) => row.members,
     state: {
       sorting,
       columnFilters,
@@ -48,73 +84,25 @@ export function DataTable({ data }) {
       rowSelection,
       expanded,
     },
-  });
-
-  const renderSubTable = (row) => {
-    const original = row.original;
-    if (original.teams) {
-      return (
-        <DataTableNested
-          data={original.teams}
-          columns={teamColumns}
-          parentId={original.id}
-          isSelected={row.getIsSelected()}
-          onRowSelectionChange={(newSelection) => {
-            const updatedSelection = { ...rowSelection };
-            Object.keys(newSelection).forEach((key) => {
-              updatedSelection[`${row.id}.${key}`] = newSelection[key];
-            });
-            setRowSelection(updatedSelection);
-          }}
-        />
-      );
-    } else if (original.projects) {
-      return (
-        <DataTableNested
-          data={original.projects}
-          columns={projectColumns}
-          parentId={original.id}
-          isSelected={row.getIsSelected()}
-          onRowSelectionChange={(newSelection) => {
-            const updatedSelection = { ...rowSelection };
-            Object.keys(newSelection).forEach((key) => {
-              updatedSelection[`${row.id}.${key}`] = newSelection[key];
-            });
-            setRowSelection(updatedSelection);
-          }}
-        />
-      );
-    }
-    return null;
-  };
+  })
 
   const getSelectedData = () => {
-    const selectedRows = table.getFilteredSelectedRowModel().rows;
-    const selectedData = {};
-
-    const processRow = (row) => {
-      const item = row.original;
-      if (!selectedData[item.id]) {
-        selectedData[item.id] = { ...item, selectedChildren: [] };
-      }
-      if (row.subRows && row.subRows.length > 0) {
-        row.subRows.forEach((subRow) => {
-          selectedData[item.id].selectedChildren.push(subRow.original);
-        });
-      }
-    };
-
-    selectedRows.forEach(processRow);
-    console.log("Selected Data:", selectedData);
-    return selectedData;
-  };
+    const selectedRows = table.getFilteredSelectedRowModel().rows
+    const selectedData = selectedRows.map((row) => {
+      const userData = row.original
+      const selectedMembers = userData.members.filter((_, index) => row.subRows?.[index]?.getIsSelected())
+      return { ...userData, members: selectedMembers }
+    })
+    console.log("Selected Data:", selectedData)
+    return selectedData
+  }
 
   return (
     <div className="w-full">
       <div className="flex items-center py-4">
         <Input
           placeholder="Filter names..."
-          value={table.getColumn("name")?.getFilterValue() || ""}
+          value={(table.getColumn("name")?.getFilterValue() ?? "")}
           onChange={(event) => table.getColumn("name")?.setFilterValue(event.target.value)}
           className="max-w-sm"
         />
@@ -136,18 +124,44 @@ export function DataTable({ data }) {
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows.length ? (
+            {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <React.Fragment key={row.id}>
                   <TableRow data-state={row.getIsSelected() && "selected"}>
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                      <TableCell key={cell.id}>
+                        {cell.column.id === "select"
+                          ? flexRender(cell.column.columnDef.cell, {
+                              ...cell.getContext(),
+                              updateChildrenSelection,
+                              updateParentSelection,
+                            })
+                          : flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
                     ))}
                   </TableRow>
                   {row.getIsExpanded() && (
                     <TableRow>
-                      <TableCell colSpan={row.getVisibleCells().length} className="p-0">
-                        {renderSubTable(row)}
+                      <TableCell colSpan={columns.length} className="p-0">
+                        <Table>
+                          <TableBody>
+                            {row.subRows.map((subRow) => (
+                              <TableRow key={subRow.id} data-state={subRow.getIsSelected() && "selected"}>
+                                {subRow.getVisibleCells().map((cell) => (
+                                  <TableCell key={cell.id}>
+                                    {cell.column.id === "select"
+                                      ? flexRender(cell.column.columnDef.cell, {
+                                          ...cell.getContext(),
+                                          updateChildrenSelection,
+                                          updateParentSelection,
+                                        })
+                                      : flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                  </TableCell>
+                                ))}
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
                       </TableCell>
                     </TableRow>
                   )}
@@ -155,7 +169,7 @@ export function DataTable({ data }) {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={userColumns.length} className="h-24 text-center">
+                <TableCell colSpan={columns.length} className="h-24 text-center">
                   No results.
                 </TableCell>
               </TableRow>
@@ -177,71 +191,11 @@ export function DataTable({ data }) {
           >
             Previous
           </Button>
-          <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
+          <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()} >
             Next
           </Button>
         </div>
       </div>
     </div>
-  );
-}
-
-function DataTableNested({ data, columns, parentId, isSelected, onRowSelectionChange }) {
-  const [rowSelection, setRowSelection] = React.useState({});
-
-  const table = useReactTable({
-    data,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-    onRowSelectionChange: (updatedSelection) => {
-      setRowSelection(updatedSelection);
-      onRowSelectionChange(updatedSelection);
-    },
-    state: { rowSelection },
-    enableRowSelection: true,
-    enableMultiRowSelection: true,
-  });
-
-  React.useEffect(() => {
-    if (isSelected) {
-      table.toggleAllRowsSelected(true);
-    } else {
-      table.toggleAllRowsSelected(false);
-    }
-  }, [isSelected, table]);
-
-  return (
-    <div className="rounded-md border-t">
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <TableHead key={header.id}>
-                  {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                </TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.length ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id} data-state={(isSelected || row.getIsSelected()) && "selected"}>
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
-                ))}
-              </TableRow>
-            ))
-          ) : (
-            <TableRow>
-              <TableCell colSpan={columns?.length} className="h-24 text-center">
-                No results.
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
-    </div>
-  );
+  )
 }
