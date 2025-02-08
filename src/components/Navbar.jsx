@@ -79,7 +79,7 @@ const Sidebar = () => {
 
       {/* Navigation Menu */}
       <motion.nav
-        className="mt-16 px-4 space-y-4"
+        className="mt-13 px-4 space-y-4"
         initial="hidden"
         animate="visible"
         transition={{ staggerChildren: 0.1 }}

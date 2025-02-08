@@ -1,17 +1,17 @@
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { useReactTable, flexRender, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel } from "@tanstack/react-table"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { columns as defaultColumns } from "./columns"
 
-export function DataTable({ data }) {
+export function DataTable({ data,columnFiltersData,onSelectionChange  }) {
   const [sorting, setSorting] = useState([])
   const [columnFilters, setColumnFilters] = useState([])
   const [columnVisibility, setColumnVisibility] = useState({})
   const [rowSelection, setRowSelection] = useState({})
   const [expanded, setExpanded] = useState({})
-
+  const [localColumnFilters, setLocalColumnFilters] = React.useState([])
   // Define the functions before passing to columns
   const updateChildrenSelection = (row, isSelected) => {
     row.subRows?.forEach((subRow) => {
@@ -36,7 +36,7 @@ export function DataTable({ data }) {
         parentRow.toggleSelected(true);
       } else if (!someChildrenSelected) {
         // No child rows are selected, so mark the parent as unchecked
-        parentRow.toggleSelected(false);
+        parentRow.toggleSelected(true);
       } else {
         // Some child rows are selected, so mark the parent as indeterminate
         parentRow.toggleSelected(true);
@@ -64,11 +64,19 @@ export function DataTable({ data }) {
     return column
   })
 
+  React.useEffect(() => {
+    const filters = Object.entries(columnFilters).map(([id, value]) => ({
+      id,
+      value: value.toLowerCase(),
+    }))
+    setLocalColumnFilters(filters)
+  }, [columnFilters])
+
   const table = useReactTable({
     data,
     columns,
     onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
+    onColumnFiltersChange: setLocalColumnFilters,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -79,27 +87,33 @@ export function DataTable({ data }) {
     getSubRows: (row) => row.members,
     state: {
       sorting,
-      columnFilters,
+      columnFilters: localColumnFilters,
       columnVisibility,
       rowSelection,
       expanded,
     },
   })
 
-  const getSelectedData = () => {
-    const selectedRows = table.getFilteredSelectedRowModel().rows
-    const selectedData = selectedRows.map((row) => {
-      const userData = row.original
-      const selectedMembers = userData.members.filter((_, index) => row.subRows?.[index]?.getIsSelected())
-      return { ...userData, members: selectedMembers }
-    })
-    console.log("Selected Data:", selectedData)
-    return selectedData
-  }
+  // const getSelectedData = () => {
+  //   const selectedRows = table.getFilteredSelectedRowModel().rows
+  //   const selectedData = selectedRows.map((row) => {
+  //     const userData = row.original
+  //     const selectedMembers = userData.members.filter((_, index) => row.subRows?.[index]?.getIsSelected())
+  //     return { ...userData, members: selectedMembers }
+  //   })
+  //   console.log("Selected Data:", selectedData)
+  //   handleClickAction(selectedData)
+  //   return selectedData
+  // }
+  // Get selected data whenever rowSelection changes
+  useEffect(() => {
+    const selectedRows = table.getFilteredSelectedRowModel().rows.map((row) => row.original)
+    onSelectionChange(selectedRows) // Pass selected data to parent
+  }, [rowSelection])
 
   return (
     <div className="w-full">
-      <div className="flex items-center py-4">
+      {/* <div className="flex items-center py-4">
         <Input
           placeholder="Filter names..."
           value={(table.getColumn("name")?.getFilterValue() ?? "")}
@@ -109,7 +123,7 @@ export function DataTable({ data }) {
         <Button onClick={getSelectedData} className="ml-4">
           Get Selected Data
         </Button>
-      </div>
+      </div> */}
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -127,7 +141,7 @@ export function DataTable({ data }) {
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <React.Fragment key={row.id}>
-                  <TableRow data-state={row.getIsSelected() && "selected"}>
+                  <TableRow data-state={row.getIsSelected() && "selected"} className="text-gray-900">
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>
                         {cell.column.id === "select"
@@ -146,7 +160,7 @@ export function DataTable({ data }) {
                         <Table>
                           <TableBody>
                             {row.subRows.map((subRow) => (
-                              <TableRow key={subRow.id} data-state={subRow.getIsSelected() && "selected"}>
+                              <TableRow key={subRow.id} data-state={subRow.getIsSelected() && "selected"} className="bg-[#A3A3CC] text-gray-900">
                                 {subRow.getVisibleCells().map((cell) => (
                                   <TableCell key={cell.id}>
                                     {cell.column.id === "select"

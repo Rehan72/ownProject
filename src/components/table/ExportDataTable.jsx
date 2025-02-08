@@ -137,16 +137,7 @@ export function DataTable({ tableData = data, isNested = false }) {
         </TableRow>
       ) : null}
 
-      {/* Nested Rows (Without Header) */}
-      {row.getIsExpanded() && row.original.subRows?.length > 0 && (
-        <TableRow>
-          <TableCell colSpan={columns.length}>
-            <div className="p-2 bg-gray-100 rounded-lg">
-              <DataTable tableData={row.original.subRows} isNested />
-            </div>
-          </TableCell>
-        </TableRow>
-      )}
+      
     </React.Fragment>
   ))}
 </TableBody>

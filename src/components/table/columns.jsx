@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowUpDown, MoreHorizontal, ChevronRight, ChevronDown } from "lucide-react"
+import { ArrowUpDown, MoreHorizontal, ChevronRight, ChevronDown, Eye } from "lucide-react"
 import { Button } from "../../components/ui/button"
 import { Checkbox } from "../../components/ui/checkbox"
 import {
@@ -12,7 +12,13 @@ import {
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu"
 
+
+const handleClickAction = (id) => {
+  //handleClickAction(id)
+  alert(`Clicked action for user ID: ${id}`)
+}
 export const columns = [
+
   {
     id: "select",
     header: ({ table }) => (
@@ -93,26 +99,14 @@ export const columns = [
     cell: ({ row }) => <div>{row.getValue("lastLogin")}</div>,
   },
   {
-    id: "actions",
+    accessorKey: "Action",
     cell: ({ row }) => {
       const user = row.original
 
       return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => navigator.clipboard.writeText(user.id)}>Copy user ID</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>View user details</DropdownMenuItem>
-            <DropdownMenuItem>View user's members</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div onClick={() => handleClickAction(user.id)}>
+          <Eye/>
+        </div>
       )
     },
   },
